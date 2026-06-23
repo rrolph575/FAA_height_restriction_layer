@@ -6,6 +6,8 @@
 # Generated outputs — regenerable from the scripts
 part77_footprints.gpkg
 *.gpkg
+*.png
+*.html
 
 # Python
 __pycache__/
