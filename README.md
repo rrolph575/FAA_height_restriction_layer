@@ -23,7 +23,7 @@ needs a real obstruction evaluation (FAA Form 7460-1).
 pip install geopandas shapely pyproj pandas
 ```
 
-## Get the data (do this yourself — large, updated every 28 days)
+## Get the data (updated every 28 days)
 FAA 28-Day NASR Subscription, **CSV** format:
 https://www.faa.gov/air_traffic/flight_info/aeronav/aero_data/NASR_Subscription/
 
