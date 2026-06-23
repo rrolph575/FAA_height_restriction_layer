@@ -16,12 +16,19 @@ The link to the interactive 60 m exclusion map is here:
 [https://rrolph575.github.io/FAA_height_restriction_layer/part77_exclusions_60m_interactive.html](https://rrolph575.github.io/FAA_height_restriction_layer/part77_exclusions_60m_interactive.html)
 
 ## Files
-- `part77.py` — geometry engine. Builds primary, approach, horizontal,
-  conical, and transitional footprints per runway and dissolves them.
-- `build_part77_nationwide.py` — reads FAA NASR CSVs, classifies each runway
-  end, runs the engine nationwide, writes a GeoPackage. Add `--tower-height-m`
-  for height-aware exclusion zones (see below).
-- `make_maps.py` — quick static (PNG) and interactive (HTML) maps of a result.
+- [`part77.py`](https://github.com/rrolph575/FAA_height_restriction_layer/blob/main/part77.py)
+  — geometry engine. Builds primary, approach, horizontal, conical, and
+  transitional footprints per runway and dissolves them.
+- [`build_part77_nationwide.py`](https://github.com/rrolph575/FAA_height_restriction_layer/blob/main/build_part77_nationwide.py)
+  — reads FAA NASR CSVs, classifies each runway end, runs the engine
+  nationwide, writes a GeoPackage. Add `--tower-height-m` for height-aware
+  exclusion zones (see below).
+- [`make_maps.py`](https://github.com/rrolph575/FAA_height_restriction_layer/blob/main/make_maps.py)
+  — quick static (PNG) and interactive (HTML) maps of a result.
+- [`part77_exclusions_60m_interactive.html`](https://github.com/rrolph575/FAA_height_restriction_layer/blob/main/part77_exclusions_60m_interactive.html)
+  — published sample map ([view it live](https://rrolph575.github.io/FAA_height_restriction_layer/part77_exclusions_60m_interactive.html)).
+- [`README.md`](https://github.com/rrolph575/FAA_height_restriction_layer/blob/main/README.md)
+  · [`.gitignore`](https://github.com/rrolph575/FAA_height_restriction_layer/blob/main/.gitignore)
 
 ## Install
 ```
