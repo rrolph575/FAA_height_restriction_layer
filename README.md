@@ -92,6 +92,24 @@ vanish, collapsing the exclusions much further.
 > (flat-terrain; no DEM). On rising terrain the true penetration zone is
 > larger, on low terrain smaller — subtract a DEM for rigorous siting.
 
+## Maps
+`make_maps.py` turns any result `.gpkg` into two quick views:
+
+```
+python make_maps.py --gpkg part77_exclusions_60m.gpkg
+```
+
+It writes, next to the input:
+- `<name>_overview.png` — static CONUS map, runways colored by classification.
+- `<name>_interactive.html` — a self-contained Leaflet/folium map of the
+  dissolved exclusion mask; open it in a browser to pan/zoom. The geometry is
+  simplified (~300 m) so the file stays small and loads fast.
+
+Requires `matplotlib` and `folium` (`pip install matplotlib folium`). A sample
+of the interactive output for a 60 m tower is committed as
+`part77_exclusions_60m_interactive.html` (download and open it — GitHub does
+not render it inline).
+
 ## How each surface is built (per § 77.19)
 - **Primary** (c): centered on runway; width by classification
   (250/500/1000 ft); extends 200 ft past each paved runway end.

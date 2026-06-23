@@ -8,6 +8,8 @@ part77_footprints.gpkg
 *.gpkg
 *.png
 *.html
+# ...but publish the 60 m interactive exclusion map
+!part77_exclusions_60m_interactive.html
 
 # Python
 __pycache__/
