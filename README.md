@@ -12,7 +12,8 @@ needs a real obstruction evaluation (FAA Form 7460-1).
 > These are derived screening surfaces, not an official FAA determination.
 > Always confirm with the FAA OE/AAA process before relying on a result.
 
-**▶ [View the interactive 60 m exclusion map](https://rrolph575.github.io/FAA_height_restriction_layer/part77_exclusions_60m_interactive.html)** (GitHub Pages)
+The link to the interactive 60 m exclusion map is here:
+[https://rrolph575.github.io/FAA_height_restriction_layer/part77_exclusions_60m_interactive.html](https://rrolph575.github.io/FAA_height_restriction_layer/part77_exclusions_60m_interactive.html)
 
 ## Files
 - `part77.py` — geometry engine. Builds primary, approach, horizontal,
