@@ -16,7 +16,9 @@ needs a real obstruction evaluation (FAA Form 7460-1).
 - `part77.py` — geometry engine. Builds primary, approach, horizontal,
   conical, and transitional footprints per runway and dissolves them.
 - `build_part77_nationwide.py` — reads FAA NASR CSVs, classifies each runway
-  end, runs the engine nationwide, writes a GeoPackage.
+  end, runs the engine nationwide, writes a GeoPackage. Add `--tower-height-m`
+  for height-aware exclusion zones (see below).
+- `make_maps.py` — quick static (PNG) and interactive (HTML) maps of a result.
 
 ## Install
 ```
@@ -52,6 +54,43 @@ Output `part77_footprints.gpkg` has two layers (EPSG:4326):
 - `part77_dissolved` — all surfaces merged into a single exclusion mask
 
 Open in QGIS, or load with `geopandas.read_file(path, layer=...)`.
+
+## Height-aware exclusion zones (recommended for siting)
+The default output is the full 2D *shadow* of the 3D surfaces — it flags the
+entire ground area under them regardless of how high the surface actually is at
+each point. That is correct as a Part 77 *notice* surface but far too large for
+"where can't I build a structure of height H," because the surfaces slope
+upward away from the runway (a precision approach is already 1,200 ft high at
+its far end). Most of the outer footprint clears a real tower by hundreds of
+feet.
+
+Pass `--tower-height-m H` to instead emit the **penetration** footprint: each
+surface is clipped to the inner region where its height is below `H`, i.e. the
+area a structure of `H` meters would actually intersect. For a 60 m tower:
+
+```
+python build_part77_nationwide.py --rwy APT_RWY.csv --end APT_RWY_END.csv \
+       --tower-height-m 60 --out part77_exclusions_60m.gpkg
+```
+
+What the clipping does (per surface):
+- **Primary** — always included (it sits at airport elevation).
+- **Approach** — clipped along-track to where it rises past `H` (a 60 m tower
+  reaches a precision approach within ~9,800 ft, not the full 50,000 ft).
+- **Horizontal** — the 150 ft plane: included in full only if `H > 150 ft`
+  (45.7 m), otherwise dropped entirely.
+- **Conical** — only the inner ring out to where it rises past `H`.
+- **Transitional** — side strip up to the 150 ft plane.
+
+Same two output layers as the default run. Nationwide, the 60 m exclusion is
+roughly half the area of the full footprint; the savings are the long approach
+corridors and outer conical, while the horizontal disc around each airport
+stays (since 60 m exceeds the 150 ft plane). Drop below 45.7 m and those discs
+vanish, collapsing the exclusions much further.
+
+> **Assumption:** heights are measured above the airport elevation
+> (flat-terrain; no DEM). On rising terrain the true penetration zone is
+> larger, on low terrain smaller — subtract a DEM for rigorous siting.
 
 ## How each surface is built (per § 77.19)
 - **Primary** (c): centered on runway; width by classification
