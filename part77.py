@@ -70,6 +70,37 @@ APPROACH = {   # outer_width_ft, total_horizontal_length_ft
     "PIR":      (16000, 50000),  # 10,000 + 40,000
 }
 
+# Approach-surface slope segments per 77.19(d): list of (segment_len_ft, run:rise).
+# Used by the height-aware builder to find how far out a surface stays below a
+# given structure height. Visual/utility = 20:1, non-precision = 34:1,
+# precision = 50:1 for the first 10,000 ft then 40:1 for the next 40,000 ft.
+APPROACH_SLOPES = {
+    "UTIL_VIS": [(5000, 20)],
+    "VIS":      [(5000, 20)],
+    "UTIL_NPI": [(5000, 20)],
+    "NPI_GT":   [(10000, 34)],
+    "NPI_LOW":  [(10000, 34)],
+    "PIR":      [(10000, 50), (40000, 40)],
+}
+
+HORIZ_SURFACE_HT_FT = 150     # 77.19(a): horizontal plane height above airport
+CONICAL_SLOPE = 20            # 77.19(b): conical rises 20:1 beyond the horizontal
+
+
+def approach_dist_for_height(cls: str, h_ft: float) -> float:
+    """Along-track distance (ft) from the inner edge of the approach surface
+    out to where the surface first reaches height h_ft. Returns the full
+    approach length if h_ft exceeds the surface's height at its outer end."""
+    d = 0.0
+    h = 0.0
+    for seg_len, slope in APPROACH_SLOPES[cls]:
+        rise = seg_len / slope
+        if h + rise >= h_ft:
+            return d + (h_ft - h) * slope
+        h += rise
+        d += seg_len
+    return d
+
 # 77.19(a): horizontal-surface arc radius
 HORIZ_RADIUS_FT = {
     "UTIL_VIS":  5000,
@@ -236,6 +267,103 @@ def build_footprint(rw: RunwayEnd) -> Polygon | MultiPolygon:
     return shp_transform(to_wgs, merged)
 
 
+def build_footprint_for_height(rw: RunwayEnd, tower_height_m: float):
+    """2D exclusion footprint = the ground area where a structure of
+    `tower_height_m` would PENETRATE any 77.19 imaginary surface.
+
+    Unlike build_footprint (which projects the full surfaces), this clips each
+    surface to the inner region where its height is <= the tower height:
+      - primary surface is at airport elevation -> always penetrated;
+      - approach surface is clipped along-track to where it rises past the
+        tower (e.g. a 60 m tower only reaches a precision approach within
+        ~9,800 ft, not the full 50,000 ft);
+      - horizontal surface (150 ft plane) is included in full only if the
+        tower exceeds 150 ft, else dropped entirely;
+      - conical surface is included only as the inner ring out to where it
+        rises past the tower height;
+      - transitional surface (7:1) adds a side strip up to the 150 ft plane.
+
+    Heights are relative to the airport elevation (flat-terrain assumption; no
+    DEM / actual ground elevation). Returns WGS84 geometry, or None if the
+    tower penetrates nothing here (shorter than every surface).
+    """
+    H_ft = tower_height_m / FT
+    if H_ft <= 0:
+        return None
+
+    lat0 = (rw.lat1 + rw.lat2) / 2.0
+    lon0 = (rw.lon1 + rw.lon2) / 2.0
+    crs = _local_crs(lat0, lon0)
+    to_local = Transformer.from_crs("EPSG:4326", crs, always_xy=True).transform
+    to_wgs = Transformer.from_crs(crs, "EPSG:4326", always_xy=True).transform
+
+    x1, y1 = to_local(rw.lon1, rw.lat1)
+    x2, y2 = to_local(rw.lon2, rw.lat2)
+    prim_w = max(PRIMARY_WIDTH_FT[rw.cls1], PRIMARY_WIDTH_FT[rw.cls2]) * FT
+
+    dx, dy = x2 - x1, y2 - y1
+    L = math.hypot(dx, dy)
+    if L < 1.0:
+        raise ValueError(f"degenerate runway: ends {L:.3f} m apart")
+    ux, uy = dx / L, dy / L
+    ext = (HARD_SURFACE_EXT_FT * FT) if rw.paved else 0.0
+    px1, py1 = x1 - ux * ext, y1 - uy * ext
+    px2, py2 = x2 + ux * ext, y2 + uy * ext
+
+    # Transitional surface (7:1) ground extent up to the height the tower
+    # reaches, capped at the 150 ft horizontal plane (beyond that it's
+    # horizontal/conical, not transitional).
+    trans_off = min(H_ft, HORIZ_SURFACE_HT_FT) * 7.0 * FT
+
+    parts = []
+    # Primary surface (+ transitional side strip) — always penetrated.
+    parts.append(_rect_from_centerline(px1, py1, px2, py2, prim_w + 2 * trans_off))
+
+    # Approach surfaces, clipped along-track to where they rise past the tower.
+    def approach_clipped(px, py, ux_out, uy_out, cls):
+        outer_w_ft, total_len_ft = APPROACH[cls]
+        d_ft = approach_dist_for_height(cls, H_ft)
+        if d_ft <= 0:
+            return None
+        length = d_ft * FT
+        inner_w_ft = prim_w / FT
+        w_at_d_ft = inner_w_ft + (outer_w_ft - inner_w_ft) * (d_ft / total_len_ft)
+        ex, ey = px + ux_out * length, py + uy_out * length
+        return _rect_from_centerline(
+            px, py, ex, ey,
+            prim_w + 2 * trans_off, w_at_d_ft * FT + 2 * trans_off)
+
+    parts.append(approach_clipped(px1, py1, -ux, -uy, rw.cls1))
+    parts.append(approach_clipped(px2, py2,  ux,  uy, rw.cls2))
+
+    # Horizontal + conical: only relevant if the tower clears the 150 ft plane.
+    if H_ft >= HORIZ_SURFACE_HT_FT:
+        r_h = max(HORIZ_RADIUS_FT[rw.cls1], HORIZ_RADIUS_FT[rw.cls2]) * FT
+        cone_ext_ft = min((H_ft - HORIZ_SURFACE_HT_FT) * CONICAL_SLOPE,
+                          CONICAL_EXTENT_FT)
+        r = r_h + cone_ext_ft * FT
+        base = math.atan2(uy, ux)
+        arc2 = _arc(px2, py2, r, base - math.pi / 2, base + math.pi / 2)
+        arc1 = _arc(px1, py1, r, base + math.pi / 2, base + 3 * math.pi / 2)
+        parts.append(Polygon(arc2 + arc1))
+
+    clean = []
+    for p in parts:
+        if p is None or p.is_empty:
+            continue
+        if not p.is_valid:
+            p = p.buffer(0)
+        if not p.is_empty:
+            clean.append(p)
+    if not clean:
+        return None
+    with np.errstate(divide="ignore", invalid="ignore"):
+        merged = unary_union(clean)
+        if not merged.is_valid:
+            merged = merged.buffer(0)
+    return shp_transform(to_wgs, merged)
+
+
 if __name__ == "__main__":
     # quick smoke test: a single precision-instrument runway near Denver
     rw = RunwayEnd(
@@ -251,3 +379,10 @@ if __name__ == "__main__":
     to_ea = Transformer.from_crs("EPSG:4326", ea, always_xy=True).transform
     print("area km^2:", round(shp_transform(to_ea, fp).area / 1e6, 1))
     print("bounds:", [round(b, 4) for b in fp.bounds])
+
+    # height-aware comparison for a 60 m tower
+    fp60 = build_footprint_for_height(rw, 60.0)
+    print("\n60 m tower exclusion:")
+    print("  valid:", fp60.is_valid)
+    print("  area km^2:", round(shp_transform(to_ea, fp60).area / 1e6, 1))
+    print("  bounds:", [round(b, 4) for b in fp60.bounds])

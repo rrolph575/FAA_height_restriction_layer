@@ -37,7 +37,8 @@ import pandas as pd
 import geopandas as gpd
 from shapely.geometry import mapping
 
-from part77 import RunwayEnd, build_footprint, PRIMARY_WIDTH_FT
+from part77 import (RunwayEnd, build_footprint, build_footprint_for_height,
+                    PRIMARY_WIDTH_FT)
 
 
 # ---------------------------------------------------------------------------
@@ -168,6 +169,10 @@ def main():
                     help="print CSV headers and exit")
     ap.add_argument("--limit", type=int, default=None,
                     help="process only N runways (for testing)")
+    ap.add_argument("--tower-height-m", type=float, default=None,
+                    help="if set, output the height-aware exclusion zones where "
+                         "a structure of this height (meters) would penetrate a "
+                         "77.19 surface, instead of the full 2D surface footprint")
     args = ap.parse_args()
 
     rwy, end = load(args.rwy, args.end, inspect=args.inspect)
@@ -262,9 +267,15 @@ def main():
         rw = RunwayEnd(lat1, lon1, lat2, lon2, cls1, cls2,
                        paved=paved, ident=f"{key[0]}/{key[1]}")
         try:
-            fp = build_footprint(rw)
+            if args.tower_height_m is not None:
+                fp = build_footprint_for_height(rw, args.tower_height_m)
+            else:
+                fp = build_footprint(rw)
         except Exception as ex:
             print(f"skip {rw.ident}: {ex}")
+            n_skipped += 1
+            continue
+        if fp is None or fp.is_empty:
             n_skipped += 1
             continue
         records.append({
