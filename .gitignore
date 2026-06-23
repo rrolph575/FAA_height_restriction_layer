@@ -1,0 +1,12 @@
+# FAA NASR subscription data — large, downloaded per 28-day cycle (see README)
+28DaySubscription_*/
+28DaySubscription_*.zip
+*.csv
+
+# Generated outputs — regenerable from the scripts
+part77_footprints.gpkg
+*.gpkg
+
+# Python
+__pycache__/
+*.pyc
